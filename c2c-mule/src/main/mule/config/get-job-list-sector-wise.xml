@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="get-job-list-sector-wiseFlow" doc:id="5f206bbb-3942-4040-b76c-82fba37586eb" >
+		<db:select doc:name="Get job list based on sector and skills" doc:id="c975fcaa-56fa-4fcb-b0a4-59891ea74e89" config-ref="Database_Config">
+			<db:sql ><![CDATA[select count(skills),skills,sector from requirement  group by  SECTOR,skills;]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Print the output" doc:id="14d44148-37db-4810-9611-5e9ad829fb76">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload groupBy ($.SECTOR) mapObject {
+    ($$): $
+} pluck ((value, key, index) ->{
+    "sector": value.SECTOR distinctBy $ joinBy "",
+    "skills": value map {
+        "name": $.SKILLS,
+        "count": $."COUNT(SKILLS)"
+    }
+})]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>

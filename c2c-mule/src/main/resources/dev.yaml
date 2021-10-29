@@ -1,0 +1,6 @@
+http:
+  listener:
+    port: "8081"
+    path: "/api/*"
+db:
+  username: "miniproject"

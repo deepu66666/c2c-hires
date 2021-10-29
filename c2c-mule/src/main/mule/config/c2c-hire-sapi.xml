@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+    <http:listener-config name="c2c-hire-sapi-httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+    <apikit:config name="c2c-hire-sapi-config" api="c2c-hire-sapi.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <flow name="c2c-hire-sapi-main">
+        <http:listener config-ref="c2c-hire-sapi-httpListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="c2c-hire-sapi-config" />
+		<error-handler ref="globalhandlerError_Handler" />
+        
+    </flow>
+    <flow name="c2c-hire-sapi-console">
+        <http:listener config-ref="c2c-hire-sapi-httpListenerConfig" path="/console/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="c2c-hire-sapi-config" />
+		<error-handler ref="globalhandlerError_Handler" />
+    </flow>
+    <flow name="put:\jobposts\(id)\(uuid):c2c-hire-sapi-config">
+        <ee:transform xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" doc:name="Variables Id and Uuid">
+            <ee:variables>
+                <ee:set-variable variableName="id"><![CDATA[attributes.uriParams.'id']]></ee:set-variable>
+                <ee:set-variable variableName="uuid"><![CDATA[attributes.uriParams.'uuid']]></ee:set-variable>
+				<ee:set-variable variableName="storePayload" ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <flow-ref doc:name="update-job-postFlow" doc:id="8595ff4c-3002-4b05-a29e-c36cad76ab69" name="update-job-postFlow"/>
+    </flow>
+    <flow name="get:\jobposts:c2c-hire-sapi-config">
+    <ee:transform doc:name="Variables Skills, Pagenumber,Sector and Minexp" doc:id="87429e0c-2a5e-40ef-9080-86b24e376045" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="skills" ><![CDATA[attributes.queryParams.skills]]></ee:set-variable>
+				<ee:set-variable variableName="pageNumber" ><![CDATA[attributes.queryParams.pageNumber]]></ee:set-variable>
+				<ee:set-variable variableName="sector" ><![CDATA[attributes.queryParams.sector]]></ee:set-variable>
+				<ee:set-variable variableName="minexp" ><![CDATA[attributes.queryParams.minexp]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<flow-ref doc:name="get-job-listFlow" doc:id="869085f7-9878-4a6d-b0a1-35faf322daa8" name="get-job-listFlow"/>
+ 
+    </flow>
+    <flow name="get:\sector:c2c-hire-sapi-config">
+		<flow-ref doc:name="get-job-list-sector-wiseFlow" doc:id="b12fd5bf-b3ff-49ad-b91e-ecdf814f8392" name="get-job-list-sector-wiseFlow" />
+    </flow>
+    <flow name="post:\jobposts:c2c-hire-sapi-config">
+    <flow-ref doc:name="new-job-postFlow" doc:id="374aab21-b57c-411c-a1da-3c7f867174be" name="new-job-postFlow"/>
+   
+    </flow>
+</mule>

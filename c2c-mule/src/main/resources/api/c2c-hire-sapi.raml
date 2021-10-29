@@ -1,0 +1,51 @@
+#%RAML 1.0
+title: c2c-hire-sapi
+/jobposts:
+  get:
+    description: To get all the requirements by company wise
+    queryParameters:
+      pageNumber:
+        type: number
+      skills:
+        type: string
+      sector:
+        type: string
+      minexp:
+        type: number
+        required: false
+        default: 0
+    responses:
+      200:
+        body:
+          application/json:
+            example: !include examples/get-job-list.raml
+  post:
+    responses:
+      200:
+        body:
+          application/json:
+            example: !include examples/new-job-post.json
+  /{id}/{uuid}:
+    uriParameters:
+      id:
+        type: integer
+        required: true
+        description: To identify the particular id of the company
+      uuid:
+        type: string
+        required: true
+        description: To update the details of particular company
+    put:
+      responses:
+        200:
+          body:
+            application/json:
+              example: !include examples/update-requirements.raml
+/sector:
+  get:
+    responses:
+      200:
+        body:
+          application/json:
+            example: !include examples/get-sectorwise-job-list.json
+    

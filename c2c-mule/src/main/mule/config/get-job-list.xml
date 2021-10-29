@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="snowflake_selectFlow" doc:id="b2ff84b2-7d5f-46da-b705-1027772ba47a" >
+		<db:select doc:name="Snowflake select to retrieve data" doc:id="f8603b58-5c20-428f-a535-1084e358aede" config-ref="Database_Config">
+			<db:sql ><![CDATA[#[payload.sql]]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"str": vars.skills default "%",
+	"sector": vars.sector default "%",
+	"minexp": vars.minexp 
+}]]]></db:input-parameters>
+		</db:select>
+	</flow>
+	<flow name="get-job-listFlow" doc:id="0eebc1d6-4885-4218-b0b1-9575827943ed" >
+		<ee:transform doc:name="sql query to count total rows" doc:id="168c7ecc-5381-45fc-920f-3a1c04c6cd41" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"sql": "select count(*) from company c inner join requirement r on c.id = r.id where r.skills like :str and r.sector like :sector and minexp >=:minexp;"
+}]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="limit" ><![CDATA[10 as Number]]></ee:set-variable>
+				<ee:set-variable variableName="offset" ><![CDATA[if(vars.offset == null) ((vars.pageNumber as Number -1)*10) as Number else vars.offset]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<flow-ref doc:name="To count total rows" doc:id="dc7144ea-cd2a-4e67-b650-609bd202178c" name="snowflake_selectFlow" />
+		<set-variable value='#[payload."COUNT(*)" reduce($$ + $) as Number]' doc:name="row count" doc:id="294af7a6-dcd4-41e9-8d7d-8d56a0987222" variableName="rowcount"/>
+		<ee:transform doc:name="divide into arrays based on limit size" doc:id="609c16c3-dac1-4c5d-814e-95d01280c6d0" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+var maxSize = ceil(vars.rowcount/vars.limit)
+fun prepareList(list:Array, maxSize: Number) = if(sizeOf(list) >= maxSize )
+list
+else
+prepareList(list ++ [(sizeOf(list) + 1) as Number],maxSize)
+
+---
+prepareList([],maxSize) as Array
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<ee:transform doc:name="sql query to get rows" doc:id="aedffb75-b505-4e5d-bd1e-654e56595b81">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{ 
+	"sql": "select NAME,SKILLS,MINEXP,MAXEXP,CONTACT,VACANCIES,SECTOR from company c inner join requirement r on c.id = r.id where r.skills like :str and r.sector like :sector and minexp >=:minexp LIMIT $(vars.limit)$(" ") OFFSET $(vars.offset)"
+}
+]]></ee:set-payload>
+				</ee:message>
+			<ee:variables >
+			</ee:variables>
+			</ee:transform>
+		<flow-ref doc:name="to retrieve selected rows limit" doc:id="62dfd747-2bfa-476d-8c46-a4b9f067013a" name="snowflake_selectFlow" />
+		<ee:transform doc:name="To print output" doc:id="2999e5e3-6ebb-4d29-a4ba-b6193104bc32" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+	<flow name="update-job-postFlow" doc:id="1d33550e-4d37-4fbd-90d6-cad7744148a5" >
+		<db:select doc:name="Retrieve Vacancies" doc:id="a2088ab6-b9a2-4b5f-a66b-e48306b8470f" config-ref="Database_Config" target="list">
+			<db:sql ><![CDATA[select TAN,SKILLS,MINEXP,MAXEXP,NAME,CONTACT,SALARY,VACANCIES,SECTOR from company c inner join requirement r
+on c.ID = r.ID and r.UUID = :uuid;]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"uuid": vars.uuid
+}]]]></db:input-parameters>
+		</db:select>
+		<validation:is-not-empty-collection doc:name="Checking Whether record present or not" doc:id="37b1646b-d9f8-4bec-887a-c5497a385b2d" config-ref="Validation_Config" values="#[vars.list]" message="Please check the id and uuid"/>
+		<ee:transform doc:name="Mapping  Data" doc:id="d1eaeef0-c638-4614-93d5-329072acec86" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+var a= vars.storePayload
+var b= vars.list
+---
+ {
+	"SKILLS": a.skills default (b.SKILLS joinBy ""),
+	"MINEXP": a.minexp default (b.MINEXP joinBy ""),
+	"MAXEXP": a.maxexp default (b.MAXEXP joinBy ""),
+	"ID": vars.id,
+	"UUID": vars.uuid,
+	"SECTOR": a.sector default (b.SECTOR joinBy ""),
+	"TAN": a.'pan/tan' default (b.TAN joinBy ""),
+	"NAME": a.name default (b.NAME joinBy ""),
+	"CONTACT": a.contact default (b.CONTACT joinBy ""),
+	"SALARY": a.salary default (b.SALARY joinBy ""),
+	"VACANCIES": ((b.VACANCIES joinBy "") as Number) - (a.occupied default 0) + (a.vacant default 0)
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<validation:is-email doc:name="Checking Email Correct Or Not" doc:id="229f4f13-5fc9-450c-af24-8e96d9fc1904" config-ref="Validation_Config" email="#[payload.CONTACT]" message="Please check the email entered"/>
+		<validation:is-not-blank-string doc:name="Checking TAN Is Not Empty" doc:id="626d5216-3134-4bac-8e7b-8872fc5e54fe" config-ref="Validation_Config" value="#[payload.TAN]" message="Please check whether tan entered or not"/>
+		<validation:is-not-blank-string doc:name="Checking SKILLS Is Not Empty" doc:id="a9a69816-fc8b-415d-a95a-55fa7085b92c" config-ref="Validation_Config" value="#[payload.SKILLS]" message="Please check whether skills has been entered"/>
+		<validation:is-not-blank-string doc:name="Checking SECTOR Is Not Empty" doc:id="9665562a-262e-4b23-95f2-0679ad0e6ac4" config-ref="Validation_Config" value="#[payload.SECTOR]" message="Please check whether sector is entered"/>
+		<try doc:name="Try" doc:id="2c1b259f-0af9-4c6e-8985-0d72632deb34" transactionalAction="ALWAYS_BEGIN">
+					<db:update doc:name="Updating Company Table in Snowflake" doc:id="290e56b0-42b3-44b7-9d5f-49aa84c6d2dd" config-ref="Database_Config" transactionalAction="ALWAYS_JOIN" target="wert">
+				<db:sql ><![CDATA[update company set NAME=:NAME,CONTACT=:CONTACT,TAN=:TAN where ID=:ID;]]></db:sql>
+				<db:input-parameters ><![CDATA[#[payload]]]></db:input-parameters>
+			</db:update>
+			<db:update doc:name="Updating Requirement Table  in Snowflake" doc:id="f7cd8ee6-280d-4de3-9d65-b2bc20c69f7f" config-ref="Database_Config" transactionalAction="ALWAYS_JOIN">
+				<db:sql ><![CDATA[update requirement set SKILLS=:SKILLS,MINEXP=:MINEXP,MAXEXP=:MAXEXP,SALARY=:SALARY, VACANCIES =:VACANCIES where ID=:ID and UUID=:UUID;]]></db:sql>
+				<db:input-parameters ><![CDATA[#[payload]]]></db:input-parameters>
+			</db:update>
+				</try>
+		<ee:transform doc:name='"Updated job list  Successfully"' doc:id="eae171fb-33a1-41e0-914d-3db9336622df" >
+			<ee:message >
+				<ee:set-payload ><![CDATA["Updated job list  Successfully"]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>

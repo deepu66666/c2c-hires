@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+	
+	
+		<flow name="new-job-postFlow" doc:id="bdf4bd47-49fd-4533-a269-84bf2dca6378" >
+		<validation:is-not-empty-collection doc:name="Checking Whether Records Empty or Not" doc:id="08a6ab25-4cdb-46f3-ae60-edbce1e9b8ad" config-ref="Validation_Config" message="No records found to insert"/>
+		<ee:transform doc:name="Mapping the data according to fields" doc:id="1b20d2ee-8179-4943-b4fc-3be3dc8bb4bb">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload map({
+	"SKILLS": $.skills,
+	"MINEXP": $.minexp,
+	"MAXEXP": $.maxexp,
+	"UUID": uuid(),
+	"TAN": $.'pan/tan',
+	"NAME": $.name,
+	"CONTACT": $.contact,
+	"SALARY": $.salary,
+	"VACANCIES": $.vacancies,
+	"SECTOR": $.sector
+})]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<foreach doc:name="For Each" doc:id="52d389fe-bebc-4381-b351-080f96db7485" collection="#[payload]">
+			<validation:is-email doc:name="Checking Email Correct Or Not" doc:id="e99c75ce-575b-4f47-8b6b-7688bb2d5fcf" config-ref="Validation_Config" email="#[payload.CONTACT]" message="Please check the email and try again" />
+			<validation:is-not-blank-string doc:name="Checking TAN Is Not Empty" doc:id="aafd9a9a-0679-4c6d-89a3-88d220a537a7" config-ref="Validation_Config" value="#[payload.TAN]" message="please check  whether TAN is provided or not" />
+			<validation:is-not-blank-string doc:name="Checking SKILLS Is Not Empty" doc:id="0661392d-2d0d-4aa6-bb84-2b95ffcde5aa" config-ref="Validation_Config" value="#[payload.SKILLS]" message="please check  whether skills is provided or not"/>
+			<validation:is-not-blank-string doc:name="Checking SECTOR Is Not Empty" doc:id="10829028-9f51-475a-9524-410cc4f7aa56" config-ref="Validation_Config" value="#[payload.SECTOR]" message="Please check whether sector is entered!"/>
+		</foreach>
+		<ee:transform doc:name="Storing Skills and Uuid in Variable" doc:id="498cf13f-0a94-4837-824c-8b03aee1f4ce" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="skills" ><![CDATA[%dw 2.0
+output application/json
+---
+payload map{
+	"skills": $.SKILLS,
+	"uuid": $.UUID
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<try doc:name="Try" doc:id="e9c6ff6d-df81-403f-989f-bc7379c10801" transactionalAction="ALWAYS_BEGIN">
+			<db:bulk-insert doc:name="Insert Into Requirement Table Snowflake" doc:id="d84309e8-032d-4cbd-bda5-7dc78d1e298b" config-ref="Database_Config" target="requirement" transactionalAction="ALWAYS_JOIN">
+			<db:sql><![CDATA[insert into requirement(SKILLS,MINEXP,MAXEXP,UUID,SALARY,VACANCIES,SECTOR) 
+values(:SKILLS,:MINEXP,:MAXEXP,:UUID,:SALARY,:VACANCIES,:SECTOR);]]></db:sql>
+		</db:bulk-insert>
+			<db:bulk-insert doc:name="Insert Into Company Table Snowflake" doc:id="3b0129df-c8ed-40b8-ba9b-8cfee7d9c3ae" config-ref="Database_Config" transactionalAction="ALWAYS_JOIN">
+					<db:sql><![CDATA[insert into company(NAME,CONTACT,TAN) values(:NAME,:CONTACT,:TAN);]]></db:sql>
+				</db:bulk-insert>
+		</try>
+		<db:select doc:name="Select id from company" doc:id="7f1d1e27-b325-440b-907b-83ddc90ebe67" config-ref="Database_Config">
+				<db:sql><![CDATA[select max(id) from company;]]></db:sql>
+			</db:select>
+		<ee:transform doc:name="Print the uuid" doc:id="b4829f3f-71e0-4e3b-91c5-6b377669cdc2">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars.skills[0] ++ {"ID": (payload.'MAX(ID)')[0]}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
