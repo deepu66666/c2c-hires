@@ -4,3 +4,7 @@ http:
     path: "/api/*"
 db:
   username: "miniproject"
+tls:
+  alias: "<alias name>"
+  keyPassword : "<key password>"
+  password : "<key store password>"
